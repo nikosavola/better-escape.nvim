@@ -1,0 +1,214 @@
+*better-escape.txt*  Escape insert mode without delay    Last change: 2024-08-31
+
+Author: max397574
+License: GPL-3.0 (see |better-escape-license|)
+
+BETTER-ESCAPE.NVIM                                          *better-escape.nvim*
+
+A Neovim plugin that lets you use key sequences (like `jk` or `jj`) to escape
+insert mode without the delay that regular mappings cause. When you map `jk` to
+`<Esc>` with normal Vim mappings, every time you press `j` Neovim waits for
+'timeoutlen' to see if `k` follows. This plugin eliminates that delay.
+
+==============================================================================
+TABLE OF CONTENTS                                      *better-escape-contents*
+
+  Introduction ......................................|better-escape-introduction|
+  Installation ......................................|better-escape-installation|
+  Configuration ....................................|better-escape-configuration|
+  Mappings ............................................|better-escape-mappings|
+  API ....................................................|better-escape-api|
+  Health Check ........................................|better-escape-health|
+  License ............................................|better-escape-license|
+
+==============================================================================
+INTRODUCTION                                       *better-escape-introduction*
+
+A lot of people have mappings like `jk` or `jj` to escape insert mode. The
+problem with these mappings is that whenever you type a `j`, Neovim waits
+about 100-500ms (depending on your 'timeoutlen') to see if you type a `k`
+because these keys are mapped. Only after that time the `j` will be inserted.
+
+better-escape.nvim solves this by intercepting individual key presses and
+only triggering the escape action when the full sequence is typed within the
+configured timeout. There is no delay when typing normally.
+
+Features:
+- Map key sequences in insert, command, terminal, visual, and select modes
+- Customizable timeout
+- Map key sequences to strings or Lua functions
+- Use multiple mappings simultaneously
+- Lightweight and fast
+
+==============================================================================
+INSTALLATION                                       *better-escape-installation*
+
+Using lazy.nvim: >lua
+    {
+        "max397574/better-escape.nvim",
+        config = function()
+            require("better_escape").setup()
+        end,
+    }
+<
+
+Using any other plugin manager, ensure the plugin is on your 'runtimepath'
+and call the setup function: >lua
+    require("better_escape").setup()
+<
+
+==============================================================================
+CONFIGURATION                                     *better-escape-configuration*
+
+                                                         *better-escape.setup()*
+require("better_escape").setup({opts})
+
+    Configure the plugin. Call this function in your |init.lua|.
+
+    Parameters: ~
+        {opts}  (table|nil)  Optional configuration table.
+
+    Options: ~
+
+        timeout ~
+            `number` (default: |'timeoutlen'|)
+            Time in milliseconds after pressing the first key before the
+            plugin stops waiting for the second key.
+
+        default_mappings ~
+            `boolean` (default: `true`)
+            Whether to use the built-in default mappings. Set to `false` to
+            define all mappings yourself.
+
+        mappings ~
+            `table`
+            A nested table defining escape sequences per mode.
+            Structure: `mode -> first_key -> second_key -> action`
+            The action can be a string (key sequence) or a Lua function.
+            Set a mapping to `false` to disable it.
+
+    Default configuration: >lua
+        require("better_escape").setup({
+            timeout = vim.o.timeoutlen,
+            default_mappings = true,
+            mappings = {
+                i = {
+                    j = {
+                        k = "<Esc>",
+                        j = "<Esc>",
+                    },
+                },
+                c = {
+                    j = {
+                        k = "<C-c>",
+                        j = "<C-c>",
+                    },
+                },
+                t = {
+                    j = {
+                        k = "<C-\\><C-n>",
+                    },
+                },
+                v = {
+                    j = {
+                        k = "<Esc>",
+                    },
+                },
+                s = {
+                    j = {
+                        k = "<Esc>",
+                    },
+                },
+            },
+        })
+<
+
+==============================================================================
+MAPPINGS                                              *better-escape-mappings*
+
+The mappings table is organized by mode. Each mode contains first-key entries,
+and each first-key contains second-key entries mapped to an action.
+
+Supported modes: ~
+    `i`   Insert mode
+    `c`   Command-line mode
+    `t`   Terminal mode
+    `v`   Visual mode
+    `s`   Select mode
+
+Example — add `kj` as an insert-mode escape: >lua
+    require("better_escape").setup({
+        mappings = {
+            i = {
+                k = {
+                    j = "<Esc>",
+                },
+            },
+        },
+    })
+<
+
+Example — disable the default `jj` mapping: >lua
+    require("better_escape").setup({
+        mappings = {
+            i = {
+                j = {
+                    j = false,
+                },
+            },
+        },
+    })
+<
+
+Example — use a Lua function: >lua
+    require("better_escape").setup({
+        mappings = {
+            i = {
+                j = {
+                    k = function()
+                        vim.api.nvim_input("<Esc>")
+                        local current_line = vim.api.nvim_get_current_line()
+                        if current_line:match("^%s+.$") then
+                            vim.schedule(function()
+                                vim.api.nvim_set_current_line("")
+                            end)
+                        end
+                    end,
+                },
+            },
+        },
+    })
+<
+
+==============================================================================
+API                                                        *better-escape-api*
+
+                                                      *better-escape-waiting*
+require("better_escape").waiting ~
+    `boolean`
+    Indicates whether the plugin is currently waiting for a mapped sequence
+    to complete (i.e., a first key has been pressed). Useful for displaying
+    status in a statusline.
+
+    Example: >lua
+        function escape_status()
+            local ok, m = pcall(require, "better_escape")
+            return ok and m.waiting and "✺" or ""
+        end
+<
+
+==============================================================================
+HEALTH CHECK                                            *better-escape-health*
+
+Run `:checkhealth better_escape` to verify that the plugin is properly
+configured. The health check verifies:
+
+- Neovim version is 0.7.0 or later
+- The plugin module is loaded
+
+==============================================================================
+LICENSE                                                *better-escape-license*
+
+GPL-3.0. See the LICENSE file in the plugin repository for full text.
+
+ vim:tw=78:ts=8:ft=help:norl:

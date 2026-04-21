@@ -1,19 +1,32 @@
+---@class BetterEscape
+---@field waiting boolean Whether the plugin is waiting for a mapped sequence to complete.
 local M = {}
+
 local uv = vim.uv or vim.loop
+
+--- Convert special key notation to terminal codes.
+---@param str string
+---@return string
 local t = function(str)
     return vim.api.nvim_replace_termcodes(str, true, true, true)
 end
 
 M.waiting = false
 
+---@alias BetterEscapeMapping string|fun():string?|false
+
+---@class BetterEscapeSettings
+---@field timeout number Timeout in milliseconds before the plugin stops waiting for a sequence.
+---@field default_mappings boolean Whether to use the default mappings.
+---@field mappings table<string, table<string, table<string, BetterEscapeMapping>>> Mode → first_key → second_key → action.
+
+---@type BetterEscapeSettings
 local settings = {
     timeout = vim.o.timeoutlen,
     default_mappings = true,
     mappings = {
         i = {
-            --  first_key[s]
             j = {
-                --  second_key[s]
                 k = "<Esc>",
                 j = "<Esc>",
             },
@@ -42,6 +55,7 @@ local settings = {
     },
 }
 
+--- Remove all keymaps set by the plugin.
 local function unmap_keys()
     for mode, keys in pairs(settings.mappings) do
         for key, subkeys in pairs(keys) do
@@ -53,13 +67,17 @@ local function unmap_keys()
     end
 end
 
--- WIP: move this into recorder.lua ?
--- When a first_key is pressed, `recorded_key` is set to it
+-- When a first_key is pressed, `recorded_key` is set to it.
 -- (e.g. if jk is a mapping, when 'j' is pressed, `recorded_key` is set to 'j')
+---@type string?
 local recorded_key = nil
+---@type boolean?
 local bufmodified = nil
 local timeout_timer = uv.new_timer()
 local has_recorded = false -- See `vim.on_key` below
+
+--- Record a key press as the first key in a potential escape sequence.
+---@param key string
 local function record_key(key)
     if timeout_timer:is_active() then
         timeout_timer:stop()
@@ -74,6 +92,7 @@ local function record_key(key)
     end)
 end
 
+--- Monitor all key presses to detect when an unrelated key breaks a sequence.
 vim.on_key(function(_, typed)
     if typed == "" then
         return
@@ -86,13 +105,15 @@ vim.on_key(function(_, typed)
     has_recorded = false
 end)
 
--- List of keys that undo the effect of pressing first_key
+--- Keys that undo the effect of pressing first_key (backspace in insert/command/terminal).
+---@type table<string, string>
 local undo_key = {
     i = "<bs>",
     c = "<bs>",
     t = "<bs>",
 }
 
+--- Create keymaps for all configured escape sequences.
 local function map_keys()
     for mode, first_keys in pairs(settings.mappings) do
         local map_opts = { expr = true }
@@ -148,6 +169,9 @@ local function map_keys()
     end
 end
 
+--- Set up better-escape with the given configuration.
+---
+---@param update? BetterEscapeSettings
 function M.setup(update)
     if update and update.default_mappings == false then
         settings.mappings = {}
